@@ -1,21 +1,10 @@
-from dataclasses import dataclass
 from typing import Iterable, List, Optional, Tuple
 
 import torch
 import transformers
 
-Span = Tuple[int, int]  # (start, end]
-
-
-@dataclass
-class Coord:
-    cc: Span
-    conjuncts: List[Span]
-
-
-class CoordinationGenerator:
-    def generate(self, inputs: Iterable[Tuple[str, Span]]) -> List[Tuple[str, Coord]]:
-        raise NotImplementedError
+from coordgen._core import Coord, CoordinationGenerator, Span
+from coordgen.models.generation_utils import SynchronizedLogitsProcessor
 
 
 class BertForCoordinationGeneration(CoordinationGenerator):
@@ -46,7 +35,6 @@ class BertForCoordinationGeneration(CoordinationGenerator):
         )
         if self.device:
             model_inputs = model_inputs.to(self.device)
-        print(model_inputs.input_ids.shape)
         logits = self.model(**model_inputs).logits
 
         model_outputs = []
@@ -112,13 +100,3 @@ def _find_span_pair(ids, sep_token_id, mask_token_id):
         end2 += 1
 
     return (start1, end1), (start2, end2)
-
-
-class SynchronizedLogitsProcessor(transformers.LogitsProcessor):
-    def __call__(self, input_ids: torch.Tensor, logits: torch.Tensor) -> torch.Tensor:
-        logits1, logits2 = logits.split(logits.size(0) // 2)
-        logits = self.forward(logits1, logits2)
-        return torch.cat((logits, logits), dim=0)
-
-    def forward(self, x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
-        return torch.minimum(x1, x2)
