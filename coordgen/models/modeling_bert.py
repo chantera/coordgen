@@ -4,6 +4,7 @@ import torch
 import transformers
 
 from coordgen._core import Coord, CoordinationGenerator, Span
+from coordgen.models._utils import embed_coord, embed_mask
 from coordgen.models.generation_utils import SynchronizedLogitsProcessor
 
 
@@ -14,65 +15,53 @@ class BertForCoordinationGeneration(CoordinationGenerator):
         tokenizer: transformers.PreTrainedTokenizerBase,
         device: Optional[torch.device] = None,
     ):
-        self.model = model
+        self.model = model.to(device)
         self.tokenizer = tokenizer
         self.device = device
         self.cc = "and"
 
     def generate(self, inputs: Iterable[Tuple[str, Span]]) -> List[Tuple[str, Coord]]:
         inputs = list(inputs)
-        outputs: List[Tuple[str, Coord]] = []
 
         batch_append_inputs = []
         batch_prepend_inputs = []
         for raw, span in inputs:
-            s1, s2 = self.embed_mask(self.tokenizer, raw, span, self.cc)
+            num_tokens = len(self.tokenizer.tokenize(raw[span[0] : span[1]]))
+            mask = " ".join([self.tokenizer.mask_token] * num_tokens)
+            s1, s2 = embed_mask(mask, raw, span, self.cc)
             batch_append_inputs.append(s1)
             batch_prepend_inputs.append(s2)
 
-        model_inputs = self.tokenizer(
-            batch_append_inputs, batch_prepend_inputs, padding=True, return_tensors="pt"
-        )
-        if self.device:
-            model_inputs = model_inputs.to(self.device)
-        logits = self.model(**model_inputs).logits
+        decoding = self._forward(batch_append_inputs, batch_prepend_inputs)
 
-        model_outputs = []
-        logits_processor = SynchronizedLogitsProcessor()
-        for i, ids in enumerate(model_inputs.input_ids):
-            (start1, end1), (start2, end2) = _find_span_pair(
-                ids, self.tokenizer.sep_token_id, self.tokenizer.mask_token_id
-            )
-            scores = logits_processor.forward(logits[i, start1:end1], logits[i, start2:end2])
-            model_outputs.append(scores.argmax(dim=-1))
-
-        for ids, (raw, span) in zip(model_outputs, inputs):
-            text = self.tokenizer.decode(ids.tolist()).strip()
-            s = self.embed_coord(text, raw, span, self.cc)
+        outputs = []
+        for ids, (raw, span) in zip(decoding, inputs):
+            text = self.tokenizer.decode(ids).strip()
+            s = embed_coord(text, raw, span, self.cc)
             outputs.append(s)
 
         return outputs
 
-    @staticmethod
-    def embed_mask(tokenizer, raw: str, span: Span, cc: str) -> Tuple[str, str]:
-        start, end = span
-        # NOTE:
-        # - `head` has a trailing space
-        # - `body` has no leading or trailing space
-        # - `tail` has a leading space
-        head, body, tail = raw[:start], raw[start:end], raw[end:]
-        cc = " " + cc + " "
-        mask = " ".join([tokenizer.mask_token] * len(tokenizer.tokenize(body)))
-        return (f"{head}{body}{cc}{mask}{tail}", f"{head}{mask}{cc}{body}{tail}")
+    @torch.no_grad()
+    def _forward(self, inputs1: List[str], inputs2: List[str]) -> List[List[int]]:
+        assert len(inputs1) == len(inputs2)
+        batch = self.tokenizer(inputs1, inputs2, padding=True, return_tensors="pt")
+        if self.device:
+            batch = batch.to(self.device)
 
-    @staticmethod
-    def embed_coord(text: str, raw: str, span: Span, cc: str) -> Tuple[str, Coord]:
-        start, end = span
-        cc = " " + cc + " "
-        start2 = end + len(cc)
-        end2 = start2 + len(text)
-        coord = Coord(cc=(end + 1, start2 - 1), conjuncts=[(start, end), (start2, end2)])
-        return f"{raw[:end]}{cc}{text}{raw[end:]}", coord
+        self.model.eval()
+        logits = self.model(**batch).logits
+
+        outputs = []
+        logits_processor = SynchronizedLogitsProcessor()
+        for i, ids in enumerate(batch.input_ids):
+            (start1, end1), (start2, end2) = _find_span_pair(
+                ids, self.tokenizer.sep_token_id, self.tokenizer.mask_token_id
+            )
+            scores = logits_processor.forward(logits[i, start1:end1], logits[i, start2:end2])
+            outputs.append(scores.argmax(dim=-1).tolist())
+
+        return outputs
 
 
 def _find_span_pair(ids, sep_token_id, mask_token_id):
