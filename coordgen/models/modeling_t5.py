@@ -16,17 +16,25 @@ class T5ForCoordinationGeneration(CoordinationGenerator):
         self,
         model: transformers.PreTrainedModel,
         tokenizer: transformers.PreTrainedTokenizerBase,
-        device: Optional[torch.device] = None,
+        **kwargs,
     ):
         if not isinstance(model, GenerationMixin):
             mixin_name = f"{GenerationMixin.__module__}.{GenerationMixin.__qualname__}"
             raise TypeError(f"model must implement `{mixin_name}`")
 
-        self.model = model.to(device)
+        self.model = model
         self.tokenizer = tokenizer
-        self.device = device
-        self.cc = "and"
-        self.num_beams = 4
+        self.device: Optional[torch.device] = None
+
+        if kwargs.get("device") is not None:
+            device_expr = kwargs["device"]
+            if not isinstance(device_expr, torch.device):
+                device_expr = torch.device(device_expr)
+            self.device = device_expr
+            self.model.to(self.device)
+
+        self.cc = kwargs.get("coordinator", "and")
+        self.num_beams = kwargs.get("num_beam", 4)
 
         allowed_tokens = [self.EXTRA_TOKEN_0, self.EXTRA_TOKEN_1]
         allowed_token_ids = set(tokenizer.convert_tokens_to_ids(allowed_tokens))

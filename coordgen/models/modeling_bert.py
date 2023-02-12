@@ -13,12 +13,20 @@ class BertForCoordinationGeneration(CoordinationGenerator):
         self,
         model: transformers.PreTrainedModel,
         tokenizer: transformers.PreTrainedTokenizerBase,
-        device: Optional[torch.device] = None,
+        **kwargs,
     ):
-        self.model = model.to(device)
+        self.model = model
         self.tokenizer = tokenizer
-        self.device = device
-        self.cc = "and"
+        self.device: Optional[torch.device] = None
+
+        if kwargs.get("device") is not None:
+            device_expr = kwargs["device"]
+            if not isinstance(device_expr, torch.device):
+                device_expr = torch.device(device_expr)
+            self.device = device_expr
+            self.model.to(self.device)
+
+        self.cc = kwargs.get("coordinator", "and")
 
     def generate(self, inputs: Iterable[Tuple[str, Span]]) -> List[Tuple[str, Coord]]:
         inputs = list(inputs)

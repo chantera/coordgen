@@ -48,10 +48,8 @@ class AutoModelForCoordinationGeneration:
         )
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
         tokenizer = tokenization_auto.AutoTokenizer.from_pretrained(pretrained_model_name_or_path)
-        model = cls._auto_model_class.from_pretrained(
-            pretrained_model_name_or_path, *model_args, **kwargs
-        )
+        model = cls._auto_model_class.from_pretrained(pretrained_model_name_or_path)
         model_class = cls._model_mapping[type(model.config)]
-        return model_class(model, tokenizer)
+        return model_class(model, tokenizer, **kwargs)
