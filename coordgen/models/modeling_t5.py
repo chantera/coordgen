@@ -18,6 +18,10 @@ class T5ForCoordinationGeneration(CoordinationGenerator):
         tokenizer: transformers.PreTrainedTokenizerBase,
         device: Optional[torch.device] = None,
     ):
+        if not isinstance(model, GenerationMixin):
+            mixin_name = f"{GenerationMixin.__module__}.{GenerationMixin.__qualname__}"
+            raise TypeError(f"model must implement `{mixin_name}`")
+
         self.model = model.to(device)
         self.tokenizer = tokenizer
         self.device = device
