@@ -44,13 +44,8 @@ class AutoModelForCoordinationGeneration:
         class_name = self.__class__.__name__
         raise EnvironmentError(
             f"{class_name} is designed to be instantiated "
-            f"using the `{class_name}.from_pretrained(pretrained_model_name_or_path)` or "
-            f"`{class_name}.from_config(config)` methods."
+            f"using the `{class_name}.from_pretrained(pretrained_model_name_or_path)` method."
         )
-
-    @classmethod
-    def from_config(cls, config, **kwargs):
-        pass
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
