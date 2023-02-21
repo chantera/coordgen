@@ -4,7 +4,7 @@ import torch
 import transformers
 
 
-class GenerationMixin(transformers.GenerationMixin):
+class GenerationMixin(transformers.generation_utils.GenerationMixin):
     def generate(self, *args, **kwargs):
         self._synchronized = kwargs.pop("synchronize", False)
         self._bad_token_ids = kwargs.pop("bad_token_ids", None)
