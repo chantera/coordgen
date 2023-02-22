@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Iterable, List, Tuple
 
-Span = Tuple[int, int]  # (start, end]
+Span = Tuple[int, int]  # [start, end)
 
 
 @dataclass
