@@ -86,9 +86,7 @@ const List = (props: { coords: Coord[] }) => {
     );
   });
 
-  return (
-    <ol>{results}</ol>
-  );
+  return <ol>{results}</ol>;
 }
 
 const App = () => {
@@ -98,8 +96,10 @@ const App = () => {
   const handleSubmit = (text: string, span: Span) => {
     setLoading(true);
     axios
-      .post("http://localhost:8000/generate", {
+      .post("/generate", {
         text: text, start: span[0], end: span[1]
+      }, {
+        baseURL: process.env.REACT_APP_API_HOST || ""
       })
       .then((res) => {
         const coord: Coord = {
