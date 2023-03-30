@@ -2,55 +2,44 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import './App.css';
 
+type Span = [number, number];
+
 interface Coord {
   text: string;
-  cc: [number, number];
-  conjuncts: [number, number][];
+  cc: Span;
+  conjuncts: Span[];
 }
 
-const Selector = (props: any) => {
+type SelectorProps = {
+  onSubmit: (text: string, span: Span) => void;
+  onReset: () => void;
+  disabled: boolean;
+}
+
+const Selector: React.FC<SelectorProps> = (props) => {
   const [input, setInput] = useState<string>("");
-  const [span, setSpan] = useState<[number, number] | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [span, setSpan] = useState<Span | null>(null);
 
   const handleSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
-    if (!(e.target instanceof HTMLTextAreaElement)) {
-      return;
-    }
-    const start = e.target.selectionStart;
-    const end = e.target.selectionEnd;
+    const start = (e.target as HTMLTextAreaElement).selectionStart;
+    const end = (e.target as HTMLTextAreaElement).selectionEnd;
     if (end > start) {
       setSpan([start, end]);
     }
   }
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    // console.log(input);
-    // console.log(span);
     e.preventDefault();
-    if (!span || loading) {
+    if (!span || props.disabled) {
       return;
     }
-    setLoading(true);
-    axios
-      .post("http://localhost:8000/generate", {
-        text: input, start: span[0], end: span[1]
-      })
-      .then((res) => {
-        const coord: Coord = {
-          text: res.data.text,
-          cc: [res.data.cc[0], res.data.cc[1]],
-          conjuncts: res.data.conjuncts.map((x: any) => [x.start, x.end])
-        };
-        props.append(coord);
-      })
-      .catch((err) => {
-        console.log(err);
-        alert("Oops! Something went wrong.");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    props.onSubmit(input, span);
+  }
+
+  const handleReset = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    setText("");
+    props.onReset();
   }
 
   const setText = (v: string) => {
@@ -59,7 +48,7 @@ const Selector = (props: any) => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded py-6 px-4 mb-1 shadow">
+    <form onSubmit={handleSubmit}>
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-y-4 gap-x-8">
         <div className="sm:col-span-4">
           <label htmlFor="input" className="block label">Input</label>
@@ -71,41 +60,80 @@ const Selector = (props: any) => {
           <code className="block h-10 preview truncate">{span && `(${span[0]}, ${span[1]}): ${input.substring(span[0], span[1])}`}</code>
         </div>
         <div>
-          <button type="submit" disabled={!span || loading} className="block w-full btn btn-primary">Generate</button>
+          <button type="submit" disabled={!span || props.disabled} className="block w-full btn btn-primary">Generate</button>
         </div>
         <div>
-          <button type="reset" onClick={() => { setText(""); props.clear(); }} className="block w-full btn">Reset</button>
+          <button type="reset" onClick={handleReset} className="block w-full btn">Reset</button>
         </div>
       </div>
     </form>
   );
 }
 
-const App = () => {
-  const [coords, setCoords] = useState<Coord[]>([]);
+const List = (props: { coords: Coord[] }) => {
+  const results = props.coords.map((coord, i) => {
+    const [pre, post] = coord.conjuncts;
+    const head = coord.text.substring(0, pre[0]);
+    const conj1 = coord.text.substring(pre[0], pre[1]);
+    const cc = coord.text.substring(pre[1], post[0]);
+    const conj2 = coord.text.substring(post[0], post[1]);
+    const tail = coord.text.substring(post[1]);
 
-  const results = coords.map((coord, i) => {
     return (
-      <li key={i}>
-        <p>{coord.text}</p>
+      <li key={i} className="rounded-md bg-gray-100 px-3.5 py-2.5 mt-4 text-gray-900">
+        {head}<u>[{conj1}]</u><b>{cc}</b>[{conj2}]{tail}
       </li>
     );
   });
 
   return (
+    <ol>{results}</ol>
+  );
+}
+
+const App = () => {
+  const [coords, setCoords] = useState<Coord[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const handleSubmit = (text: string, span: Span) => {
+    setLoading(true);
+    axios
+      .post("http://localhost:8000/generate", {
+        text: text, start: span[0], end: span[1]
+      })
+      .then((res) => {
+        const coord: Coord = {
+          text: res.data.text,
+          cc: [res.data.cc.start, res.data.cc.end],
+          conjuncts: res.data.conjuncts.map((x: any) => [x.start, x.end])
+        };
+        setCoords(coords.concat([coord]));
+      })
+      .catch((err) => {
+        console.log(err);
+        alert("Oops! Something went wrong.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }
+
+  return (
     <div className="min-h-full">
       <header className="bg-white shadow-sm">
         <div className="mx-auto max-w-4xl py-6 px-4 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Coordgen</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Coordgen</h1>
         </div>
       </header>
       <main>
         <div className="mx-auto max-w-4xl py-6 sm:px-6 lg:px-8">
-          <Selector
-            append={(coord: Coord) => setCoords(coords.concat([coord]))}
-            clear={() => setCoords([])}
-          />
-          <ol>{results}</ol>
+          <div className="bg-white rounded py-6 px-4 shadow mb-8">
+            <Selector onSubmit={handleSubmit} onReset={() => setCoords([])} disabled={loading} />
+          </div>
+          <div className="bg-white rounded py-6 px-4 shadow" style={{ display: coords.length ? "block" : "none" }}>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Results</h2>
+            <List coords={coords} />
+          </div>
         </div>
       </main>
     </div>
