@@ -5,13 +5,15 @@ from typing import Any, Dict, List
 import torch
 from coordgen.models import AutoModelForCoordinationGeneration
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, BaseSettings
+from pydantic import AnyHttpUrl, BaseModel, BaseSettings
 
 
 class Settings(BaseSettings):
     model_name: str = "t5-small"
     device: str = "cpu"
+    cors_origins: List[AnyHttpUrl] = []
 
     class Config:
         env_file = ".env"
@@ -35,6 +37,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+if get_settings().cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[str(origin) for origin in get_settings().cors_origins],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 @app.get("/info")
