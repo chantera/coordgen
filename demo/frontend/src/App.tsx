@@ -96,11 +96,7 @@ const App = () => {
   const handleSubmit = (text: string, span: Span) => {
     setLoading(true);
     axios
-      .post("/generate", {
-        text: text, start: span[0], end: span[1]
-      }, {
-        baseURL: process.env.REACT_APP_API_HOST || ""
-      })
+      .post("/generate", { text: text, start: span[0], end: span[1] })
       .then((res) => {
         const coord: Coord = {
           text: res.data.text,
