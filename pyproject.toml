@@ -20,6 +20,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest"]
 
+[tool.setuptools]
+packages = ["coordgen"]
+
 [tool.ruff]
 select = ["E", "W", "F", "B"]
 ignore = ["B905"]

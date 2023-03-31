@@ -1,1 +1,2 @@
 fastapi
+git+https://github.com/chantera/coordgen.git#egg=coordgen
